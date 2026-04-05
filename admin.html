@@ -1,0 +1,845 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin — Taha's Counter</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+  <link rel="stylesheet" href="./src/style.css">
+  <style>
+    body { justify-content: center; }
+    .admin-metric { display:flex; align-items:center; justify-content:space-between; padding:12px 16px; background:var(--glass); border:1px solid var(--glass-border); border-radius:var(--radius-md); }
+    .admin-metric-label { font-family:'Syne',sans-serif; font-size:11px; font-weight:700; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.08em; }
+    .admin-metric-val { font-family:'DM Mono',monospace; font-size:22px; font-weight:500; }
+    .admin-metric-pct { font-family:'DM Mono',monospace; font-size:13px; color:var(--text-dim); }
+    .section-title { font-family:'Syne',sans-serif; font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:0.1em; color:var(--text-dim); margin-bottom:12px; }
+  </style>
+</head>
+<body>
+
+<!-- Loading -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loading-logo">Admin</div>
+  <div class="loading-spinner"></div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- Edit User Modal -->
+<div class="edit-modal-overlay" id="editModal">
+  <div class="edit-modal-box">
+    <div class="edit-modal-title">Edit User</div>
+    <input type="hidden" id="edit-uid">
+    <div style="margin-bottom:10px;">
+      <label style="font-size:11px;color:var(--text-dim);font-family:'Syne',sans-serif;text-transform:uppercase;letter-spacing:0.08em;">Name</label>
+      <input type="text" class="modal-input" id="edit-name" style="margin-bottom:0;margin-top:6px;">
+    </div>
+    <div style="margin-bottom:10px;">
+      <label style="font-size:11px;color:var(--text-dim);font-family:'Syne',sans-serif;text-transform:uppercase;letter-spacing:0.08em;">Email</label>
+      <input type="email" class="modal-input" id="edit-email" style="margin-bottom:0;margin-top:6px;">
+    </div>
+    <div style="margin-bottom:20px;">
+      <label style="font-size:11px;color:var(--text-dim);font-family:'Syne',sans-serif;text-transform:uppercase;letter-spacing:0.08em;">Role</label>
+      <select class="modal-input" id="edit-role" style="margin-bottom:0;margin-top:6px;font-size:14px;">
+        <option value="agent">Agent</option>
+        <option value="supervisor">Supervisor</option>
+        <option value="admin">Admin</option>
+      </select>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-primary" id="saveEditBtn">Save Changes</button>
+      <button class="btn btn-ghost" onclick="document.getElementById('editModal').classList.remove('active')">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Admin Shell -->
+<div class="admin-shell">
+
+  <!-- Header -->
+  <div class="admin-header">
+    <div>
+      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:28px;letter-spacing:-0.03em;">Commander</div>
+      <div style="font-size:12px;color:var(--text-dim);margin-top:2px;font-family:'DM Mono',monospace;">Admin Control Panel</div>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;">
+      <span class="sync-dot" id="syncDot"></span>
+      <span style="font-size:11px;color:var(--text-dim);" id="syncLabel">Loading…</span>
+      <button class="btn btn-ghost" id="logoutBtn">Sign Out</button>
+    </div>
+  </div>
+
+  <!-- ── User Table + Kanban row ─────────────────────────────── -->
+  <div class="admin-grid">
+
+    <!-- User Table -->
+    <div class="glass-card" style="padding:20px;overflow:auto;">
+      <div class="section-title">User Directory</div>
+      <table class="user-table" id="userTable">
+        <thead><tr>
+          <th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Actions</th>
+        </tr></thead>
+        <tbody id="userTableBody"></tbody>
+      </table>
+    </div>
+
+    <!-- Kanban -->
+    <div class="glass-card" style="padding:20px;overflow:auto;">
+      <div class="section-title">Team Organization</div>
+      <div class="kanban-board" id="kanbanBoard"></div>
+    </div>
+  </div>
+
+  <!-- ── Analytics Row ─────────────────────────────────────── -->
+  <div class="admin-grid" style="margin-top:0;">
+
+    <!-- Calendar -->
+    <div class="glass-card" style="padding:20px;">
+      <div class="section-title">
+        Select Days
+        <button class="select-all-btn" id="selectAllBtn" style="float:right;">All</button>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+        <button class="cal-nav-btn" id="admin-cal-prev">&#x276E;</button>
+        <span style="font-family:'Syne',sans-serif;font-weight:700;font-size:13px;color:var(--text-main);" id="admin-cal-label">Month</span>
+        <button class="cal-nav-btn" id="admin-cal-next">&#x276F;</button>
+      </div>
+      <div class="calendar-grid" id="admin-cal-grid" style="gap:5px;"></div>
+    </div>
+
+    <!-- Agent selector + Exports -->
+    <div class="glass-card" style="padding:20px;">
+      <div class="section-title">View Performance</div>
+      <select class="modal-input" id="agentSelect" style="width:100%;font-size:14px;margin-bottom:14px;">
+        <option value="all">All Team</option>
+      </select>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <button class="btn btn-ghost" id="exportRawBtn">Export Raw Call Logs (.xlsx)</button>
+        <button class="btn btn-primary" id="exportPerfBtn">Export Performance Report (.xlsx)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Dashboard Metrics ──────────────────────────────────── -->
+  <div class="glass-card" style="padding:24px;margin-top:20px;">
+    <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:18px;margin-bottom:18px;" id="dashTitle">Team Performance</div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;">
+      <div class="admin-metric">
+        <div><div class="admin-metric-label">Payments / Calls</div><div class="admin-metric-pct" id="d-pay-pct">0.0%</div></div>
+        <div class="admin-metric-val" id="d-pay">0 / 0</div>
+      </div>
+      <div class="admin-metric">
+        <div><div class="admin-metric-label">Full Balance / Calls</div><div class="admin-metric-pct" id="d-full-pct">0.0%</div></div>
+        <div class="admin-metric-val" id="d-full">0 / 0</div>
+      </div>
+      <div class="admin-metric">
+        <div><div class="admin-metric-label">Removed / In Coll.</div><div class="admin-metric-pct" id="d-post-pct">0.0%</div></div>
+        <div class="admin-metric-val" id="d-post">0 / 0</div>
+      </div>
+      <div class="admin-metric">
+        <div><div class="admin-metric-label">Auto Pay</div><div class="admin-metric-pct" id="d-ap-money" style="color:var(--success);">$0</div></div>
+        <div class="admin-metric-val" id="d-ap">0</div>
+      </div>
+      <div class="admin-metric">
+        <div><div class="admin-metric-label">Payment Plans</div><div class="admin-metric-pct" id="d-pp-money" style="color:var(--success);">$0</div></div>
+        <div class="admin-metric-val" id="d-pp">0</div>
+      </div>
+      <div class="admin-metric">
+        <div><div class="admin-metric-label">Credits Applied</div></div>
+        <div class="admin-metric-val" id="d-credits" style="color:var(--warning);">$0</div>
+      </div>
+      <div class="admin-metric">
+        <div>
+          <div class="admin-metric-label">Repackaging Swaps</div>
+          <div class="admin-metric-pct" id="d-etv-breakdown" style="color:var(--info);font-size:10px;">E:0 · X:0 · EV:0</div>
+        </div>
+        <div class="admin-metric-val" id="d-etv-total">0</div>
+      </div>
+      <div class="admin-metric">
+        <div><div class="admin-metric-label">Repackaging Payout</div><div class="admin-metric-pct" id="d-etv-tier" style="color:var(--warning);">Tier 1 · $1/swap</div></div>
+        <div class="admin-metric-val" id="d-etv-money" style="color:var(--success);">$0</div>
+      </div>
+      <div class="admin-metric" style="border-color:rgba(var(--primary-rgb,253,201,201),0.3);background:rgba(var(--primary-rgb,253,201,201),0.05);">
+        <div><div class="admin-metric-label" style="color:var(--primary);">Total Earnings</div><div class="admin-metric-pct" style="color:var(--text-dim);font-size:10px;">AP + PP + Repack.</div></div>
+        <div class="admin-metric-val" id="d-total-earnings" style="color:var(--primary);">$0</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Admin Trend Chart ──────────────────────────────────── -->
+  <div class="glass-card" style="padding:24px;margin-top:20px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:18px;" id="adminChartTitle">Monthly Trend</div>
+      <span style="font-size:12px;color:var(--text-dim);font-family:'DM Mono',monospace;" id="adminChartMonth"></span>
+    </div>
+    <div style="position:relative;height:240px;width:100%;">
+      <canvas id="adminTrendChart"></canvas>
+    </div>
+  </div>
+
+  <div style="text-align:center;padding:20px 0;font-size:10px;color:var(--text-muted);font-family:'DM Mono',monospace;">
+    Yousef &amp; Taha's Counter · Commander · Firebase Edition
+  </div>
+
+</div><!-- /admin-shell -->
+
+<script type="module">
+import { initializeApp }           from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, onAuthStateChanged, signOut }
+                                   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore, collection, doc, getDoc, getDocs, onSnapshot,
+         updateDoc, deleteDoc, query, where, orderBy }
+                                   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFunctions, httpsCallable, connectFunctionsEmulator }
+                                   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-functions.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAMw0DoMDycNvqpAZFBTuxDuMNcZ50MAQc",
+  authDomain: "performance-counter.firebaseapp.com",
+  databaseURL: "https://performance-counter-default-rtdb.firebaseio.com",
+  projectId: "performance-counter",
+  storageBucket: "performance-counter.firebasestorage.app",
+  messagingSenderId: "605140364499",
+  appId: "1:605140364499:web:2cdaec7a04f1e57678b826",
+  measurementId: "G-7H5SNPN646"
+};
+
+const app       = initializeApp(firebaseConfig);
+const auth      = getAuth(app);
+const db        = getFirestore(app);
+// Explicitly use us-central1 (default for v2 functions); change if you deployed to another region
+const functions = getFunctions(app, 'us-central1');
+
+// Uncomment the line below ONLY when testing with Firebase emulator locally:
+// connectFunctionsEmulator(functions, 'localhost', 5001);
+
+// Cloud Function callers
+const adminCreateUser  = httpsCallable(functions, 'adminCreateUser');
+const adminDisableUser = httpsCallable(functions, 'adminDisableUser');
+const adminDeleteUser  = httpsCallable(functions, 'adminDeleteUser');
+
+const ADMIN_MONTH_NAMES = ['January','February','March','April','May','June',
+  'July','August','September','October','November','December'];
+function adminDaysInMonth(y,m){ return new Date(y,m+1,0).getDate(); }
+function adminDateKey(y,m,d){ return y+'-'+String(m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0'); }
+
+let adminYear      = new Date().getFullYear();
+let adminMonth     = new Date().getMonth();
+// Start with all days of the current month selected
+let selectedDays   = Array.from(
+  {length: new Date(new Date().getFullYear(), new Date().getMonth()+1, 0).getDate()},
+  (_, i) => adminDateKey(new Date().getFullYear(), new Date().getMonth(), i + 1)
+);
+let allUsers       = [];
+let allMetrics     = {};   // uid → { 'YYYY-MM-DD': {...} }
+let adminChartInst = null; // admin trend chart instance
+
+// The strict month prefix for the admin's current view
+function adminMonthPrefix() {
+  return adminYear + '-' + String(adminMonth+1).padStart(2,'0') + '-';
+}
+
+// ── Toast ────────────────────────────────────────────────────
+function toast(msg, type='info', dur=3000) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.className = `toast show ${type}`;
+  clearTimeout(el._t); el._t = setTimeout(() => el.className='toast', dur);
+}
+
+// ── Sync dot ─────────────────────────────────────────────────
+function setSyncState(state) {
+  const dot = document.getElementById('syncDot');
+  const lbl = document.getElementById('syncLabel');
+  if (state==='ok')      { dot.className='sync-dot'; lbl.textContent='Live'; }
+  if (state==='syncing') { dot.className='sync-dot syncing'; lbl.textContent='Loading…'; }
+  if (state==='error')   { dot.className='sync-dot error'; lbl.textContent='Error'; }
+}
+
+// ── Auth Guard ───────────────────────────────────────────────
+onAuthStateChanged(auth, async (user) => {
+  if (!user) { window.location.href='./index.html'; return; }
+  const profileSnap = await getDoc(doc(db,'users',user.uid));
+  if (!profileSnap.exists() || profileSnap.data().role !== 'admin') {
+    await signOut(auth);
+    window.location.href = './index.html';
+    return;
+  }
+  hideLoading();
+  initAdmin();
+});
+
+function hideLoading() {
+  const el = document.getElementById('loadingOverlay');
+  el.classList.add('hidden');
+  setTimeout(() => el.style.display='none', 400);
+}
+
+// ── Init ─────────────────────────────────────────────────────
+async function initAdmin() {
+  setSyncState('syncing');
+  onSnapshot(collection(db,'users'), (snap) => {
+    allUsers = snap.docs.map(d => ({ uid: d.id, ...d.data() })).filter(u => u.role !== 'admin');
+    renderAgentDropdown();
+    renderUserTable();
+    renderKanban();
+    allMetrics = {}; // user list changed — clear cache so metrics re-fetch for current month
+    updateDashboard();
+    setSyncState('ok');
+  });
+
+  setupCalendar();
+  setupEvents();
+}
+
+// ── Events ───────────────────────────────────────────────────
+function setupEvents() {
+  document.getElementById('logoutBtn').onclick = async () => {
+    await signOut(auth); window.location.href='./index.html';
+  };
+  document.getElementById('selectAllBtn').onclick  = toggleSelectAll;
+  document.getElementById('agentSelect').onchange  = () => { allMetrics = {}; updateDashboard(); };
+  document.getElementById('saveEditBtn').onclick   = saveEdit;
+  document.getElementById('exportRawBtn').onclick  = exportRaw;
+  document.getElementById('exportPerfBtn').onclick = exportPerf;
+  // ── Admin state flush on month change ──────────────────────
+  // Clears the metrics cache and selection, then rebuilds everything.
+  // This guarantees no ghost data from the previous month survives.
+  function adminNavigateToMonth(year, month) {
+    adminYear  = year;
+    adminMonth = month;
+    allMetrics = {}; // clear cache — next getAgentMetrics will fetch only new month's docs
+    // Select all days of the new month so dashboard shows full picture immediately
+    const days = adminDaysInMonth(adminYear, adminMonth);
+    selectedDays = Array.from({length: days}, (_, i) => adminDateKey(adminYear, adminMonth, i + 1));
+    setupCalendar();
+    updateDashboard();
+  }
+
+  document.getElementById('admin-cal-prev').onclick = () => {
+    let m = adminMonth - 1, y = adminYear;
+    if (m < 0) { m = 11; y--; }
+    adminNavigateToMonth(y, m);
+  };
+  document.getElementById('admin-cal-next').onclick = () => {
+    let m = adminMonth + 1, y = adminYear;
+    if (m > 11) { m = 0; y++; }
+    adminNavigateToMonth(y, m);
+  };
+}
+
+// ── Agent Dropdown ────────────────────────────────────────────
+function renderAgentDropdown() {
+  const sel = document.getElementById('agentSelect');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="all">All Team</option>';
+  const unassigned = allUsers.filter(u=>u.role==='agent'&&!u.supervisorId);
+  if (unassigned.length) {
+    const og = document.createElement('optgroup'); og.label='Unassigned';
+    unassigned.forEach(u => og.insertAdjacentHTML('beforeend',`<option value="${u.uid}">${u.name}</option>`));
+    sel.appendChild(og);
+  }
+  allUsers.filter(u=>u.role==='supervisor').forEach(sup => {
+    const og = document.createElement('optgroup'); og.label=`Team: ${sup.name}`;
+    og.insertAdjacentHTML('beforeend',`<option value="${sup.uid}">${sup.name} (Supervisor)</option>`);
+    allUsers.filter(u=>u.role==='agent'&&u.supervisorId===sup.uid).forEach(u => {
+      og.insertAdjacentHTML('beforeend',`<option value="${u.uid}">${u.name}</option>`);
+    });
+    sel.appendChild(og);
+  });
+  if (cur) sel.value = cur;
+}
+
+// ── User Table ────────────────────────────────────────────────
+function renderUserTable() {
+  const tbody = document.getElementById('userTableBody');
+  tbody.innerHTML = '';
+  allUsers.forEach(u => {
+    const tr = document.createElement('tr');
+    const statusPill = u.disabled
+      ? `<span class="status-pill inactive">Inactive</span>`
+      : `<span class="status-pill active">Active</span>`;
+    tr.innerHTML = `
+      <td>${u.name || '—'}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:11px;">${u.email}</td>
+      <td style="text-transform:capitalize;">${u.role}</td>
+      <td>${statusPill}</td>
+      <td><button class="action-btn" onclick="openEdit('${u.uid}')">Edit</button></td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+// ── Edit Modal ────────────────────────────────────────────────
+window.openEdit = function(uid) {
+  const u = allUsers.find(u=>u.uid===uid);
+  if (!u) return;
+  document.getElementById('edit-uid').value   = uid;
+  document.getElementById('edit-name').value  = u.name  || '';
+  document.getElementById('edit-email').value = u.email || '';
+  document.getElementById('edit-role').value  = u.role  || 'agent';
+  document.getElementById('editModal').classList.add('active');
+};
+
+async function saveEdit() {
+  const uid   = document.getElementById('edit-uid').value;
+  const name  = document.getElementById('edit-name').value.trim();
+  const email = document.getElementById('edit-email').value.trim();
+  const role  = document.getElementById('edit-role').value;
+  if (!name || !email) { toast('Name and email required','error'); return; }
+  const btn = document.getElementById('saveEditBtn');
+  btn.innerHTML = '<span class="spinner"></span>'; btn.disabled = true;
+  try {
+    await updateDoc(doc(db,'users',uid), { name, email, role });
+    document.getElementById('editModal').classList.remove('active');
+    toast('User updated', 'success');
+  } catch(e) { toast('Update failed: ' + e.message, 'error'); }
+  finally { btn.textContent='Save Changes'; btn.disabled=false; }
+}
+
+// ── Kanban Board ──────────────────────────────────────────────
+function renderKanban() {
+  const board = document.getElementById('kanbanBoard');
+  board.innerHTML = '';
+  const supervisors = allUsers.filter(u=>u.role==='supervisor');
+  const agents      = allUsers.filter(u=>u.role==='agent');
+  board.appendChild(makeKanbanCol('unassigned','Unassigned', agents.filter(a=>!a.supervisorId)));
+  supervisors.forEach(sup => {
+    board.appendChild(makeKanbanCol(sup.uid, sup.name, agents.filter(a=>a.supervisorId===sup.uid)));
+  });
+}
+
+function makeKanbanCol(supId, title, agents) {
+  const col = document.createElement('div');
+  col.className = 'kanban-col';
+  col.dataset.supId = supId;
+  col.innerHTML = `<div class="kanban-col-title">${title}</div>`;
+  agents.forEach(a => {
+    const card = document.createElement('div');
+    card.className = 'draggable-card';
+    card.draggable = true;
+    card.dataset.agentId = a.uid;
+    card.innerHTML = `<span>${a.name}</span><span style="opacity:0.4;font-size:11px;">⣿</span>`;
+    card.addEventListener('dragstart', () => card.classList.add('dragging'));
+    card.addEventListener('dragend',   () => card.classList.remove('dragging'));
+    col.appendChild(card);
+  });
+  col.addEventListener('dragover', e => {
+    e.preventDefault();
+    const dc = document.querySelector('.dragging');
+    if (dc) col.appendChild(dc);
+  });
+  col.addEventListener('drop', async (e) => {
+    e.preventDefault();
+    const dc  = document.querySelector('.dragging');
+    if (!dc) return;
+    const aId    = dc.dataset.agentId;
+    const newSup = col.dataset.supId === 'unassigned' ? null : col.dataset.supId;
+    try { await updateDoc(doc(db,'users',aId), { supervisorId: newSup }); }
+    catch(e) { toast('Failed to reassign agent','error'); }
+  });
+  return col;
+}
+
+// ── Calendar ──────────────────────────────────────────────────
+function setupCalendar() {
+  const grid  = document.getElementById('admin-cal-grid');
+  const label = document.getElementById('admin-cal-label');
+  if (label) label.textContent = ADMIN_MONTH_NAMES[adminMonth] + ' ' + adminYear;
+  grid.innerHTML = '';
+  const days = adminDaysInMonth(adminYear, adminMonth);
+  for (let i=1;i<=days;i++) {
+    const key = adminDateKey(adminYear, adminMonth, i);
+    const btn = document.createElement('div');
+    btn.className='day-btn';
+    btn.textContent = i;
+    if (selectedDays.includes(key)) btn.classList.add('active');
+    btn.onclick = () => {
+      if (selectedDays.includes(key)) {
+        selectedDays = selectedDays.filter(d=>d!==key);
+        if (!selectedDays.length) selectedDays=[key];
+      } else {
+        selectedDays.push(key);
+      }
+      setupCalendar(); updateDashboard();
+    };
+    grid.appendChild(btn);
+  }
+}
+
+function toggleSelectAll() {
+  const days = adminDaysInMonth(adminYear, adminMonth);
+  const allKeys = Array.from({length:days},(_,i)=>adminDateKey(adminYear,adminMonth,i+1));
+  selectedDays = selectedDays.length===days && allKeys.every(k=>selectedDays.includes(k))
+    ? [adminDateKey(adminYear,adminMonth,new Date().getDate())]
+    : allKeys;
+  setupCalendar(); updateDashboard();
+}
+
+// ── Metrics Fetch ─────────────────────────────────────────────
+function adminMonthDocKey() {
+  return adminYear + '-' + String(adminMonth + 1).padStart(2, '0');
+}
+
+async function getAgentMetrics(uid) {
+  // Read ONLY from the current month's subcollection: metrics/{YYYY-MM}/days
+  // This makes month separation structural — no filtering needed, no cross-month bleed possible.
+  const monthDk = adminMonthDocKey(); // e.g. "2026-04"
+  const pfx     = adminMonthPrefix(); // e.g. "2026-04-"
+  const snap    = await getDocs(collection(db, 'users', uid, 'metrics', monthDk, 'days'));
+  const data    = {};
+  const days    = adminDaysInMonth(adminYear, adminMonth);
+  // Pre-fill all days with zeros so UI shows 0 for days with no data
+  for (let i = 1; i <= days; i++) {
+    const key = pfx + String(i).padStart(2, '0');
+    data[key] = {calls:0,pay:0,full:0,coll:0,rem:0,post:0,credits:0,ap:0,pp:0,etv:0,xtv:0,eev:0};
+  }
+  snap.forEach(d => {
+    const dd  = d.id;                        // "05"
+    const key = pfx + dd.padStart(2, '0');   // "2026-04-05"
+    data[key] = { ...data[key], ...d.data() };
+  });
+  allMetrics[uid] = data;
+  return data;
+}
+
+function aggForDays(data) {
+  const r   = {calls:0,pay:0,full:0,coll:0,rem:0,post:0,credits:0,ap:0,pp:0,etv:0,xtv:0,eev:0};
+  const pfx = adminMonthPrefix();
+  selectedDays.forEach(k => {
+    if (!k.startsWith(pfx)) return; // skip any stale keys from a previous month
+    const day = data[k];
+    if (!day) return;
+    Object.keys(r).forEach(f => r[f] += (day[f] || 0));
+  });
+  return r;
+}
+
+// ETV tier: strictly scoped to the current admin month (no cross-month bleed)
+function etvTier(data) {
+  const total = Object.entries(data).filter(([k])=>k.startsWith(adminMonthPrefix())).reduce((s,[,d])=>s+(d.etv||0)+(d.xtv||0)+(d.eev||0),0);
+  const rate  = total>=21?3:total>=11?2:1;
+  return { total, rate, money: total*rate, label: total>=21?'Tier 3·$3/swap':total>=11?'Tier 2·$2/swap':'Tier 1·$1/swap' };
+}
+
+// ── Dashboard Update ──────────────────────────────────────────
+async function updateDashboard() {
+  const agentId = document.getElementById('agentSelect').value;
+  let agg = {calls:0,pay:0,full:0,coll:0,rem:0,post:0,credits:0,ap:0,pp:0,etv:0,xtv:0,eev:0};
+  let etvMoneyTotal = 0;
+
+  const sv = (id,v) => { const el=document.getElementById(id); if(el) el.textContent=v; };
+  const loadingIds = ['d-pay','d-full','d-post','d-ap','d-pp','d-credits','d-pay-pct','d-full-pct',
+    'd-post-pct','d-ap-money','d-pp-money','d-etv-total','d-etv-money','d-etv-tier','d-etv-breakdown','d-total-earnings'];
+  loadingIds.forEach(id=>sv(id,'…'));
+
+  const processAgents = async (agents) => {
+    for (const u of agents) {
+      const data = await getAgentMetrics(u.uid);
+      const d    = aggForDays(data);
+      Object.keys(agg).forEach(k => agg[k] += (d[k] || 0));
+      // ETV uses full-month total per agent
+      const { money } = etvTier(data);
+      etvMoneyTotal += money;
+    }
+  };
+
+  if (agentId === 'all') {
+    document.getElementById('dashTitle').textContent = 'Team Performance';
+    await processAgents(allUsers.filter(u => u.role === 'agent'));
+  } else {
+    const u = allUsers.find(u => u.uid === agentId);
+    if (u?.role === 'supervisor') {
+      document.getElementById('dashTitle').textContent = `Team: ${u.name}`;
+      await processAgents(allUsers.filter(a => a.role==='agent' && a.supervisorId===agentId));
+    } else {
+      document.getElementById('dashTitle').textContent = `${u?.name||'Agent'}'s Performance`;
+      const data = await getAgentMetrics(agentId);
+      agg = aggForDays(data);
+      const { money } = etvTier(data);
+      etvMoneyTotal = money;
+    }
+  }
+
+  const payPct  = agg.calls ? (agg.pay  / agg.calls * 100) : 0;
+  const fullPct = agg.calls ? (agg.full / agg.calls * 100) : 0;
+  const postPct = agg.coll  ? (agg.post / agg.coll  * 100) : 0;
+
+  sv('d-pay',      `${agg.pay} / ${agg.calls}`);
+  sv('d-pay-pct',  payPct.toFixed(1) + '%');
+  sv('d-full',     `${agg.full} / ${agg.calls}`);
+  sv('d-full-pct', fullPct.toFixed(1) + '%');
+  sv('d-post',     `${agg.post} / ${agg.coll}`);
+  sv('d-post-pct', postPct.toFixed(1) + '%');
+  sv('d-ap',       agg.ap);
+  sv('d-ap-money', '$' + (agg.ap * 2).toFixed(0));
+  sv('d-pp',       agg.pp);
+  sv('d-pp-money', '$' + agg.pp.toFixed(0));
+  sv('d-credits',  agg.credits > 0 ? `($${agg.credits.toFixed(0)})` : '$0');
+
+  const etvSwaps = (agg.etv||0)+(agg.xtv||0)+(agg.eev||0);
+  sv('d-etv-total',     etvSwaps);
+  sv('d-etv-breakdown', `E:${agg.etv||0} · X:${agg.xtv||0} · EV:${agg.eev||0}`);
+  sv('d-etv-money',     '$' + etvMoneyTotal.toFixed(0));
+  // Tier label based on aggregate month swaps
+  const aggRate  = etvSwaps>=21?3:etvSwaps>=11?2:1;
+  sv('d-etv-tier', etvSwaps>=21?'Tier 3 · $3/swap':etvSwaps>=11?'Tier 2 · $2/swap':'Tier 1 · $1/swap');
+
+  const totalEarnings = (agg.ap*2) + agg.pp + etvMoneyTotal;
+  sv('d-total-earnings', '$' + totalEarnings.toFixed(0));
+
+  // Render chart AFTER allMetrics is fully populated by getAgentMetrics calls above
+  renderAdminChart();
+}
+
+// ── Exports ───────────────────────────────────────────────────
+async function exportRaw() {
+  toast('Fetching call logs…', 'info', 2000);
+  try {
+    const snap = await getDocs(collection(db, 'callLogs'));
+    const allLogs = [];
+    snap.forEach(d => allLogs.push(d.data()));
+
+    // Filter by selected days
+    const filtered = allLogs.filter(l => {
+      if (!l.ts) return false;
+      const d = new Date(l.ts);
+      const key = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+      return selectedDays.includes(key);
+    });
+
+    // Enrich with agent name
+    const uidToName = {};
+    allUsers.forEach(u => { uidToName[u.uid] = u.name || u.email; });
+
+    const data = [['Agent Name','Agent Email','Account #','Seq #','Outcome','Timestamp']];
+    filtered
+      .sort((a,b) => new Date(a.ts) - new Date(b.ts))
+      .forEach(l => data.push([
+        uidToName[l.agentUid] || l.agentEmail || 'Unknown',
+        l.agentEmail || '—',
+        l.acc, l.seq, l.outcome,
+        new Date(l.ts).toLocaleString()
+      ]));
+
+    if (data.length === 1) { toast('No call logs for selected days', 'info'); return; }
+
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    ws['!cols'] = [18,24,14,14,16,22].map(w => ({wch:w}));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Raw Call Logs');
+    XLSX.writeFile(wb, 'Raw_Call_Logs.xlsx');
+    toast(`Exported ${data.length-1} log entries`, 'success');
+  } catch(e) {
+    console.error(e);
+    toast('Export failed: ' + e.message, 'error');
+  }
+}
+
+async function exportPerf() {
+  toast('Building performance report…', 'info', 2000);
+
+  const pct     = (n,d) => d ? (n/d*100).toFixed(1)+'%' : '0.0%';
+  const HEADERS = ['Rep Name','Role','Supervisor','Calls','Payments','Pay Yield %','Full Payments','Full Pay %',
+    'In Collection','Removed Post.','% Coll Removed','Auto Pay #','AP Earnings','Payment Plans #','PP Earnings',
+    'ETV Swaps','XTV Swaps','EEV Swaps','Total Swaps','Repack Tier','Repack Payout','Total Earnings','Credits ($)'];
+
+  const aggUser = async (uid) => {
+    const m = await getAgentMetrics(uid);
+    const r = {calls:0,pay:0,full:0,coll:0,rem:0,post:0,credits:0,ap:0,pp:0,etv:0,xtv:0,eev:0};
+    selectedDays.forEach(k => { const day=m[k]||{}; Object.keys(r).forEach(f=>r[f]+=(day[f]||0)); });
+    // ETV uses full month
+    const etv = etvTier(m);
+    return { ...r, etvTierData: etv };
+  };
+
+  const addAgg = (a,b) => {
+    const r = {...a};
+    Object.keys(r).forEach(k => { if(k!=='etvTierData') r[k]+=b[k]||0; });
+    r.etvMoneyAgg = (r.etvMoneyAgg||0) + (b.etvTierData?.money||0);
+    return r;
+  };
+  const zeroAgg = () => ({calls:0,pay:0,full:0,coll:0,rem:0,post:0,credits:0,ap:0,pp:0,etv:0,xtv:0,eev:0,etvTierData:{total:0,rate:1,money:0},etvMoneyAgg:0});
+
+  const makeRow = (name, role, supName, agg) => {
+    const et  = agg.etvTierData || {total:0,rate:1,money:0};
+    const swaps = (agg.etv||0)+(agg.xtv||0)+(agg.eev||0);
+    const repackMoney = agg.etvMoneyAgg !== undefined ? agg.etvMoneyAgg : et.money;
+    const totalEarn   = (agg.ap*2) + agg.pp + repackMoney;
+    return [
+      name, role, supName,
+      agg.calls,
+      agg.pay,   pct(agg.pay,  agg.calls),
+      agg.full,  pct(agg.full, agg.calls),
+      agg.coll,
+      agg.post,  pct(agg.post, agg.coll),
+      agg.ap,    '$'+(agg.ap*2).toFixed(0),
+      agg.pp,    '$'+agg.pp.toFixed(0),
+      agg.etv||0, agg.xtv||0, agg.eev||0,
+      swaps,
+      swaps>=21?'T3·$3':swaps>=11?'T2·$2':'T1·$1',
+      '$'+repackMoney.toFixed(0),
+      '$'+totalEarn.toFixed(0),
+      agg.credits ? `($${agg.credits.toFixed(2)})` : '$0.00'
+    ];
+  };
+
+  const rows   = [HEADERS];
+  const styles = [{ row:0, type:'header' }];
+  const supervisors = allUsers.filter(u=>u.role==='supervisor');
+  const unassigned  = allUsers.filter(u=>u.role==='agent' && !u.supervisorId);
+  let queueAgg = zeroAgg();
+
+  for (const sup of supervisors) {
+    const agents = allUsers.filter(u=>u.role==='agent' && u.supervisorId===sup.uid);
+    if (!agents.length) continue;
+    rows.push([`Supervisor: ${sup.name}`, ...Array(HEADERS.length-1).fill('')]);
+    styles.push({ row:rows.length-1, type:'supervisor' });
+    let teamAgg = zeroAgg();
+    for (const agent of agents) {
+      const agg = await aggUser(agent.uid);
+      teamAgg = addAgg(teamAgg, agg);
+      rows.push(makeRow(agent.name||agent.email, 'Agent', sup.name, agg));
+      styles.push({ row:rows.length-1, type:'agent' });
+    }
+    queueAgg = addAgg(queueAgg, teamAgg);
+    rows.push(makeRow(`Team Total — ${sup.name}`, '', '', teamAgg));
+    styles.push({ row:rows.length-1, type:'team_total' });
+    rows.push(['']);
+  }
+
+  if (unassigned.length) {
+    rows.push(['Unassigned Agents', ...Array(HEADERS.length-1).fill('')]);
+    styles.push({ row:rows.length-1, type:'supervisor' });
+    let unAgg = zeroAgg();
+    for (const agent of unassigned) {
+      const agg = await aggUser(agent.uid);
+      unAgg = addAgg(unAgg, agg);
+      rows.push(makeRow(agent.name||agent.email, 'Agent', 'Unassigned', agg));
+      styles.push({ row:rows.length-1, type:'agent' });
+    }
+    queueAgg = addAgg(queueAgg, unAgg);
+    rows.push(makeRow('Unassigned Total', '', '', unAgg));
+    styles.push({ row:rows.length-1, type:'team_total' });
+    rows.push(['']);
+  }
+
+  rows.push(makeRow('QUEUE TOTAL (All Teams)', '', '', queueAgg));
+  styles.push({ row:rows.length-1, type:'queue_total' });
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [22,10,18,7,10,11,10,10,11,10,13,9,12,10,12,9,9,9,10,10,13,14,13].map(w=>({wch:w}));
+
+  const styleMap = {
+    header:      { fgColor:{rgb:'1E293B'}, fontColor:{rgb:'F8FAFC'}, bold:true },
+    supervisor:  { fgColor:{rgb:'334155'}, fontColor:{rgb:'E2E8F0'}, bold:true },
+    team_total:  { fgColor:{rgb:'0F172A'}, fontColor:{rgb:'FCD34D'}, bold:true },
+    queue_total: { fgColor:{rgb:'000000'}, fontColor:{rgb:'4ADE80'}, bold:true },
+    agent:       { fgColor:null, fontColor:null, bold:false },
+  };
+
+  styles.forEach(({ row, type }) => {
+    const s = styleMap[type]; if (!s) return;
+    for (let c=0; c<HEADERS.length; c++) {
+      const addr = XLSX.utils.encode_cell({r:row,c});
+      if (!ws[addr]) ws[addr] = {v:'',t:'s'};
+      ws[addr].s = {
+        font:  { bold:s.bold, color:s.fontColor?{rgb:s.fontColor.rgb}:undefined },
+        fill:  s.fgColor?{patternType:'solid',fgColor:{rgb:s.fgColor.rgb}}:undefined,
+        alignment: { vertical:'center' }
+      };
+    }
+  });
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Performance');
+  XLSX.writeFile(wb, 'Performance_Report.xlsx');
+  toast('Performance report exported', 'success');
+}
+
+// ── Admin Trend Chart ─────────────────────────────────────────
+// Aggregates ALL agents for each day of the current month and plots
+// pay%, full%, post% as lines. Resets to zero if no data exists.
+async function renderAdminChart() {
+  const canvas = document.getElementById('adminTrendChart');
+  if (!canvas || typeof window.Chart === 'undefined') return;
+
+  const agentId = document.getElementById('agentSelect')?.value || 'all';
+  const pfx     = adminMonthPrefix();
+  const days    = adminDaysInMonth(adminYear, adminMonth);
+  const labels  = [], payArr = [], fullArr = [], postArr = [];
+
+  // Determine which agents to plot based on dropdown selection
+  let agentsToPlot = [];
+  if (agentId === 'all') {
+    agentsToPlot = allUsers.filter(u => u.role === 'agent');
+  } else {
+    const u = allUsers.find(u => u.uid === agentId);
+    if (u?.role === 'supervisor') {
+      agentsToPlot = allUsers.filter(a => a.role === 'agent' && a.supervisorId === agentId);
+    } else if (u) {
+      agentsToPlot = [u];
+    }
+  }
+
+  // Ensure all needed agents' metrics are loaded
+  for (const u of agentsToPlot) {
+    if (!allMetrics[u.uid]) await getAgentMetrics(u.uid);
+  }
+
+  // Build day-by-day arrays using strict month prefix
+  for (let i = 1; i <= days; i++) {
+    const dayKey = pfx + String(i).padStart(2, '0');
+    labels.push(i);
+    let calls = 0, pay = 0, full = 0, coll = 0, post = 0;
+    for (const u of agentsToPlot) {
+      const d = (allMetrics[u.uid] || {})[dayKey];
+      if (!d) continue;
+      calls += d.calls||0; pay  += d.pay ||0; full += d.full||0;
+      coll  += d.coll ||0; post += d.post||0;
+    }
+    payArr.push(  calls ? +(pay  / calls * 100).toFixed(1) : 0);
+    fullArr.push( calls ? +(full / calls * 100).toFixed(1) : 0);
+    postArr.push( coll  ? +(post / coll  * 100).toFixed(1) : 0);
+  }
+
+  // Update header label
+  const monthLbl = document.getElementById('adminChartMonth');
+  if (monthLbl) monthLbl.textContent = ADMIN_MONTH_NAMES[adminMonth] + ' ' + adminYear;
+
+  // Destroy old chart instance safely
+  if (adminChartInst) { try { adminChartInst.destroy(); } catch(e){} adminChartInst = null; }
+
+  adminChartInst = new window.Chart(canvas.getContext('2d'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label:'Pay %',  data:payArr,  borderColor:'#fbbf24', backgroundColor:'rgba(251,191,36,0.10)', borderWidth:2.5, tension:0.4, pointRadius:3, pointHoverRadius:5, fill:true },
+        { label:'Full %', data:fullArr, borderColor:'#60a5fa', backgroundColor:'rgba(96,165,250,0.08)', borderWidth:2.5, tension:0.4, pointRadius:3, pointHoverRadius:5, fill:true },
+        { label:'Post %', data:postArr, borderColor:'#34d399', backgroundColor:'rgba(52,211,153,0.08)', borderWidth:2.5, tension:0.4, pointRadius:3, pointHoverRadius:5, fill:true },
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      interaction:{ mode:'index', intersect:false },
+      plugins:{
+        legend:{ labels:{ color:'#94a3b8', font:{ size:11, weight:'600', family:'DM Mono' }, boxWidth:10, padding:12 } },
+        tooltip:{
+          backgroundColor:'rgba(15,30,54,0.95)', borderColor:'rgba(255,255,255,0.1)', borderWidth:1,
+          titleColor:'#f1f5f9', bodyColor:'#94a3b8', padding:10,
+          callbacks:{ label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)}%` }
+        }
+      },
+      scales:{
+        x:{ grid:{ display:false }, ticks:{ color:'#64748b', font:{ size:10, family:'DM Mono' } } },
+        y:{ beginAtZero:true, max:100, grid:{ color:'rgba(255,255,255,0.05)' },
+            ticks:{ color:'#64748b', font:{ size:10, family:'DM Mono' }, stepSize:25, callback: v => v+'%' } }
+      }
+    }
+  });
+}
+
+</script>
+</body>
+</html>

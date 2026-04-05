@@ -1,0 +1,1272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Yousef &amp; Taha's Counter</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <link rel="stylesheet" href="./src/style.css">
+</head>
+<body>
+
+<!-- Loading Screen -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loading-logo">TC</div>
+  <div class="loading-spinner"></div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- Auth Modal -->
+<div class="modal-backdrop" id="authModal">
+  <div class="modal-box">
+    <div class="modal-title" id="authTitle">Welcome Back</div>
+    <div class="modal-sub" id="authSub">Sign in to sync your data across devices</div>
+    <input type="email" class="modal-input" id="authEmail" placeholder="Email address">
+    <input type="password" class="modal-input" id="authPassword" placeholder="Password (min 6 chars)">
+    <div class="modal-msg" id="authMsg"></div>
+    <div class="modal-btns">
+      <button class="btn btn-primary" id="signInBtn">Sign In</button>
+      <button class="btn btn-ghost" id="signUpBtn" style="display:none;">Sign Up</button>
+    </div>
+    <div class="modal-link" id="authToggleWrap">
+      No account? <a id="authToggle" onclick="toggleAuthMode()">Create one</a>
+    </div>
+    <div class="modal-link" style="margin-top:8px;">
+      <a id="resetLink" onclick="sendPasswordReset()">Forgot password?</a>
+    </div>
+  </div>
+</div>
+
+
+
+<!-- App Shell -->
+<div class="app-shell">
+
+  <!-- ══ SIDEBAR ══════════════════════════════════════════════ -->
+  <aside class="sidebar" id="sidebar">
+
+    <!-- Call Logger -->
+    <div class="sb-section call-logger">
+      <div class="sb-label">Call Logger</div>
+      <div class="logger-row" style="margin-bottom:8px;">
+        <input type="text" class="tool-input" id="accNum" placeholder="Acc #" style="flex:1;">
+        <input type="text" class="tool-input" id="seqNum" placeholder="Seq #" style="flex:1;">
+      </div>
+      <div class="logger-row" style="flex-wrap:wrap;gap:10px;margin-bottom:8px;">
+        <label class="logger-check-label"><input type="checkbox" id="chk-pay"> Pay</label>
+        <label class="logger-check-label"><input type="checkbox" id="chk-full"> Full</label>
+        <label class="logger-check-label"><input type="checkbox" id="chk-rem"> Rem</label>
+      </div>
+      <button class="btn btn-ghost" style="width:100%;font-size:11px;" onclick="logCall()">Log Call ↵</button>
+    </div>
+
+
+
+
+
+    <!-- Calendar -->
+    <div class="sb-section">
+      <div class="sb-label">
+        Select Day
+        <button class="select-all-btn" id="selectAllBtn">All</button>
+      </div>
+      <!-- Month navigation -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+        <button class="cal-nav-btn" id="cal-prev-btn">&#x276E;</button>
+        <span style="font-family:'Syne',sans-serif;font-weight:700;font-size:12px;color:var(--text-main);" id="cal-month-label">Month</span>
+        <button class="cal-nav-btn" id="cal-next-btn">&#x276F;</button>
+      </div>
+      <div class="calendar-grid" id="calendar-grid"></div>
+    </div>
+
+    <!-- Performance Chart -->
+    <div class="sb-section">
+      <div class="sb-label">31-Day Trend</div>
+      <div class="chart-box">
+        <canvas id="performanceChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Theme & Actions -->
+    <div class="sb-section">
+      <div class="sb-label">Appearance</div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+        <label style="font-size:12px;color:var(--text-dim);">Accent</label>
+        <div class="color-picker-wrap" id="colorPickerWrap">
+          <div class="color-dot" id="colorDot"></div>
+          <input type="color" id="colorPickerInput" value="#fdc9c9">
+        </div>
+        <span style="font-family:'DM Mono',monospace;font-size:11px;color:var(--text-dim);" id="colorHex">#fdc9c9</span>
+      </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <button class="btn btn-ghost" style="width:100%;font-size:12px;" id="screenshotBtn">📸 Screenshot</button>
+      <button class="btn btn-ghost" style="width:100%;font-size:12px;" id="loginBtn">Sign In</button>
+    </div>
+
+    <!-- Firebase sync status -->
+    <div style="display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--text-dim);gap:4px;padding-bottom:4px;" id="syncStatus">
+      <span class="sync-dot" id="syncDot"></span>
+      <span id="syncLabel">Not connected</span>
+    </div>
+
+  </aside>
+
+  <!-- ══ MAIN ════════════════════════════════════════════════ -->
+  <main class="main-content" id="mainContent">
+
+    <!-- Top Bar -->
+    <div class="top-bar">
+      <button id="toggle-sidebar-btn" class="sidebar-open" title="Toggle sidebar">☰</button>
+      <div class="app-title-wrap">
+        <input id="app-title" value="Yousef &amp; Taha's Counter" autocomplete="off" maxlength="40" readonly>
+        <svg class="edit-icon" id="editTitleBtn" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" onclick="startTitleEdit()">
+          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+        </svg>
+      </div>
+    </div>
+
+    <!-- Capture Area -->
+    <div id="capture-area">
+      <!-- Status Bar -->
+      <div class="status-bar">
+        <span class="view-label" id="view-label">Day 1</span>
+        <span class="last-updated" id="last-updated">Last Updated: —</span>
+      </div>
+
+      <!-- Calls -->
+      <div class="metric-card">
+        <div class="metric-info">
+          <span class="metric-label">Calls</span>
+        </div>
+        <div class="metric-controls" id="ctrl-calls">
+          <button class="btn-circle" onclick="change('calls', -1)">−</button>
+          <span class="counter-val" id="calls-val">0</span>
+          <button class="btn-circle" onclick="change('calls', 1)">+</button>
+        </div>
+      </div>
+
+      <!-- Payments -->
+      <div class="metric-card">
+        <div class="metric-info">
+          <div class="arrow-wrap" id="payArrowWrap">
+            <span class="tier-arrow" id="payArrow">▾</span>
+          </div>
+          <span class="metric-label">
+            Payments
+            <span class="tier-badge" id="pay-tier" style="display:none;"></span>
+          </span>
+          <span class="metric-pct" id="pay-perc">0.0%</span>
+        </div>
+        <div class="metric-controls" id="ctrl-pay">
+          <button class="btn-circle" onclick="change('pay', -1)">−</button>
+          <span class="counter-val" id="pay-val">0</span>
+          <button class="btn-circle" onclick="change('pay', 1)">+</button>
+        </div>
+      </div>
+
+      <!-- Full Balance -->
+      <div class="metric-card">
+        <div class="metric-info">
+          <div class="arrow-wrap" id="fullArrowWrap">
+            <span class="tier-arrow" id="fullArrow">▾</span>
+          </div>
+          <span class="metric-label">
+            Full Balance
+            <span class="tier-badge" id="full-tier" style="display:none;"></span>
+          </span>
+          <span class="metric-pct" id="full-perc">0.0%</span>
+        </div>
+        <div class="metric-controls" id="ctrl-full">
+          <button class="btn-circle" onclick="change('full', -1)">−</button>
+          <span class="counter-val" id="full-val">0</span>
+          <button class="btn-circle" onclick="change('full', 1)">+</button>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- In Collection -->
+      <div class="metric-card">
+        <div class="metric-info">
+          <span class="metric-label" style="color:var(--text-dim);">In Collection Post.</span>
+        </div>
+        <div class="metric-controls" id="ctrl-coll">
+          <button class="btn-circle" onclick="change('coll', -1)">−</button>
+          <span class="counter-val" id="coll-val">0</span>
+          <button class="btn-circle" onclick="change('coll', 1)">+</button>
+        </div>
+      </div>
+
+      <!-- Removed Post -->
+      <div class="metric-card">
+        <div class="metric-info">
+          <div class="arrow-wrap" id="postArrowWrap">
+            <span class="tier-arrow" id="postArrow">▾</span>
+          </div>
+          <span class="metric-label">
+            Removed Post.
+            <span class="tier-badge" id="post-tier" style="display:none;"></span>
+          </span>
+          <span class="metric-pct" id="post-perc">0.0%</span>
+        </div>
+        <div class="metric-controls" id="ctrl-post">
+          <button class="btn-circle" onclick="change('post', -1)">−</button>
+          <span class="counter-val" id="post-val">0</span>
+          <button class="btn-circle" onclick="change('post', 1)">+</button>
+        </div>
+      </div>
+
+      <!-- Credits Applied -->
+      <div class="metric-card">
+        <div class="metric-info">
+          <span class="metric-label">Credits Applied</span>
+        </div>
+        <div class="metric-controls" id="ctrl-credits">
+          <button class="btn-circle" onclick="changeCredits(-50)">−</button>
+          <input type="number" class="credits-input" id="credits-val" value="0">
+          <button class="btn-circle" onclick="changeCredits(50)">+</button>
+        </div>
+      </div>
+
+      <!-- Auto Pay + Payment Plans -->
+      <div class="metric-card" style="flex-direction:column;gap:12px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;width:100%;">
+          <div class="metric-info">
+            <span class="metric-label" style="color:var(--text-dim);">Auto Pay</span>
+          </div>
+          <div class="metric-controls" id="ctrl-ap">
+            <button class="btn-circle" onclick="change('ap', -1)">−</button>
+            <span class="counter-val" id="ap-val">0</span>
+            <button class="btn-circle" onclick="change('ap', 1)">+</button>
+            <span class="money-val" id="ap-money">$0</span>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;width:100%;">
+          <div class="metric-info">
+            <span class="metric-label" style="color:var(--text-dim);">Payment Plans</span>
+          </div>
+          <div class="metric-controls" id="ctrl-pp">
+            <button class="btn-circle" onclick="change('pp', -1)">−</button>
+            <span class="counter-val" id="pp-val">0</span>
+            <button class="btn-circle" onclick="change('pp', 1)">+</button>
+            <span class="money-val" id="pp-money">$0</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Repackaging / ETV -->
+      <div class="metric-card" style="flex-direction:column;gap:0;">
+        <div style="display:flex;justify-content:space-between;align-items:center;width:100%;margin-bottom:12px;">
+          <div class="metric-info">
+            <span class="metric-label">Repackaging</span>
+            <span class="money-val" id="etv-tier-label" style="font-size:11px;margin-top:2px;color:var(--text-dim);">1–10 swaps &middot; $1 each</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span class="money-val" style="font-size:15px;font-weight:700;" id="etv-total-money">$0</span>
+            <span class="tier-badge" id="etv-tier-badge" style="display:none;"></span>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <!-- Entertainment TV row -->
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <span class="etv-label etv-label--etv">Entertainment TV</span>
+            <div class="metric-controls" id="ctrl-etv">
+              <button class="btn-circle" onclick="changeETV('etv',-1)">&#x2212;</button>
+              <span class="counter-val" id="etv-val">0</span>
+              <button class="btn-circle" onclick="changeETV('etv',1)">+</button>
+            </div>
+          </div>
+          <!-- Extra TV row -->
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <span class="etv-label etv-label--xtv">Extra TV</span>
+            <div class="metric-controls" id="ctrl-xtv">
+              <button class="btn-circle" onclick="changeETV('xtv',-1)">&#x2212;</button>
+              <span class="counter-val" id="xtv-val">0</span>
+              <button class="btn-circle" onclick="changeETV('xtv',1)">+</button>
+            </div>
+          </div>
+          <!-- Everything TV row -->
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <span class="etv-label etv-label--eev">Everything TV</span>
+            <div class="metric-controls" id="ctrl-eev">
+              <button class="btn-circle" onclick="changeETV('eev',-1)">&#x2212;</button>
+              <span class="counter-val" id="eev-val">0</span>
+              <button class="btn-circle" onclick="changeETV('eev',1)">+</button>
+            </div>
+          </div>
+        </div>
+        <div style="margin-top:8px;font-size:12px;color:var(--text-dim);font-family:'DM Mono',monospace;">
+          Total swaps this month: <strong id="etv-swaps-total" style="color:var(--text-main);">0</strong>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- Total Earnings -->
+      <div class="metric-card" style="background:rgba(var(--primary-rgb),0.06);border-color:rgba(var(--primary-rgb),0.2);">
+        <div class="metric-info">
+          <span class="metric-label" style="color:var(--primary);">Total Earnings</span>
+          <span style="font-size:11px;color:var(--text-dim);margin-top:2px;font-family:'DM Mono',monospace;">AP + PP + Repackaging</span>
+        </div>
+        <span style="font-family:'DM Mono',monospace;font-size:26px;font-weight:700;color:var(--primary);" id="total-earnings">$0</span>
+      </div>
+    </div><!-- /capture-area -->
+
+    <div style="text-align:center;padding:20px 0 10px;font-size:10px;color:var(--text-muted);font-family:'DM Mono',monospace;">
+      Made by :3 · Firebase Edition
+    </div>
+  </main>
+
+</div><!-- /app-shell -->
+
+<script type="module">
+// ═══════════════════════════════════════════════════════════════
+// Firebase Imports
+// ═══════════════════════════════════════════════════════════════
+import { initializeApp }           from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword,
+         createUserWithEmailAndPassword, signOut, sendPasswordResetEmail }
+                                   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import { getFirestore, doc, getDoc, setDoc, updateDoc, onSnapshot,
+         collection, writeBatch, addDoc }  from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getDatabase, ref, set, onValue, serverTimestamp }
+                                   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
+
+// ── Firebase Config ──────────────────────────────────────────
+const firebaseConfig = {
+  apiKey: "AIzaSyAMw0DoMDycNvqpAZFBTuxDuMNcZ50MAQc",
+  authDomain: "performance-counter.firebaseapp.com",
+  databaseURL: "https://performance-counter-default-rtdb.firebaseio.com",
+  projectId: "performance-counter",
+  storageBucket: "performance-counter.firebasestorage.app",
+  messagingSenderId: "605140364499",
+  appId: "1:605140364499:web:2cdaec7a04f1e57678b826",
+  measurementId: "G-7H5SNPN646"
+};
+
+const app   = initializeApp(firebaseConfig);
+const auth  = getAuth(app);
+const db    = getFirestore(app);
+const rtdb  = getDatabase(app);
+
+// ═══════════════════════════════════════════════════════════════
+// State
+// ═══════════════════════════════════════════════════════════════
+const EMPTY_DAY = { calls:0, pay:0, full:0, coll:0, rem:0, post:0, credits:0, ap:0, pp:0, etv:0, xtv:0, eev:0 };
+// allData keyed by 'YYYY-MM-DD'
+let allData      = {};
+let currentYear  = new Date().getFullYear();
+let currentMonth = new Date().getMonth(); // 0-indexed
+// selectedDates: array of 'YYYY-MM-DD' strings
+let selectedDates = [toDateKey(new Date())];
+let currentUser = null;
+let userProfile = null;
+let unsubMetrics = null;
+let unsubProfile = null;
+let lastTs      = Date.now();
+let chartInst   = null;
+let timerIv     = null;
+let isAuthMode  = 'signin';
+
+function toDateKey(d) {
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function daysInMonth(year, month) {
+  return new Date(year, month + 1, 0).getDate();
+}
+function ensureDay(key) {
+  if (!allData[key]) allData[key] = { ...EMPTY_DAY };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Toast helper
+// ═══════════════════════════════════════════════════════════════
+function toast(msg, type = 'info', dur = 3000) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = `toast show ${type}`;
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.className = 'toast'; }, dur);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Sync indicator
+// ═══════════════════════════════════════════════════════════════
+function setSyncState(state) {
+  const dot   = document.getElementById('syncDot');
+  const label = document.getElementById('syncLabel');
+  if (state === 'ok')      { dot.className = 'sync-dot'; label.textContent = 'Synced'; }
+  if (state === 'syncing') { dot.className = 'sync-dot syncing'; label.textContent = 'Syncing…'; }
+  if (state === 'error')   { dot.className = 'sync-dot error'; label.textContent = 'Sync error'; }
+  if (state === 'offline') { dot.className = 'sync-dot error'; label.textContent = 'Offline (local)'; }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Auth State Observer
+// ═══════════════════════════════════════════════════════════════
+onAuthStateChanged(auth, async (user) => {
+  if (user) {
+    currentUser = user;
+    await loadUserProfile(user.uid);
+    subscribeMetrics(user.uid);
+    document.getElementById('loginBtn').textContent = 'Sign Out';
+    setSyncState('ok');
+  } else {
+    currentUser = null;
+    userProfile = null;
+    if (unsubMetrics) { unsubMetrics(); unsubMetrics = null; }
+    if (unsubProfile) { unsubProfile(); unsubProfile = null; }
+    document.getElementById('loginBtn').textContent = 'Sign In';
+    setSyncState('offline');
+    loadLocalData();
+  }
+  hideLoading();
+});
+
+// ═══════════════════════════════════════════════════════════════
+// Firestore: Load user profile (onSnapshot for live updates)
+// ═══════════════════════════════════════════════════════════════
+async function loadUserProfile(uid) {
+  const profileRef = doc(db, 'users', uid);
+  if (unsubProfile) unsubProfile();
+  unsubProfile = onSnapshot(profileRef, (snap) => {
+    if (snap.exists()) {
+      userProfile = snap.data();
+      // Redirect admin
+      if (userProfile.role === 'admin') {
+        window.location.href = './admin.html';
+        return;
+      }
+      // Apply theme
+      const color = userProfile.theme?.primaryColor || '#fdc9c9';
+      const title = userProfile.theme?.title || "Yousef & Taha's Counter";
+      applyTheme(color, title);
+    } else {
+      // First login — create profile
+      const name = currentUser.email.split('@')[0];
+      setDoc(profileRef, {
+        uid,
+        email: currentUser.email,
+        name,
+        role: 'agent',
+        status: 'active',
+        disabled: false,
+        createdAt: new Date().toISOString(),
+        theme: { primaryColor: '#fdc9c9', title: `${name}'s Counter` }
+      });
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Firestore: Subscribe to metrics (onSnapshot = real-time)
+// ═══════════════════════════════════════════════════════════════
+function monthDocKey() {
+  return currentYear + '-' + String(currentMonth + 1).padStart(2, '0');
+}
+
+function subscribeMetrics(uid) {
+  if (unsubMetrics) unsubMetrics();
+  // Subscribe ONLY to the current month's subcollection: metrics/{YYYY-MM}/days
+  const metricsRef = collection(db, 'users', uid, 'metrics', monthDocKey(), 'days');
+  setSyncState('syncing');
+  unsubMetrics = onSnapshot(metricsRef, (snapshot) => {
+    // Clear only current month keys — keep other months intact in allData
+    const pfx = currentMonthPrefix();
+    Object.keys(allData).forEach(k => { if (k.startsWith(pfx)) delete allData[k]; });
+    snapshot.forEach(docSnap => {
+      const dd  = docSnap.id; // "01" .. "31"
+      const key = pfx + dd.padStart(2, '0');
+      allData[key] = { ...EMPTY_DAY, ...docSnap.data() };
+    });
+    setSyncState('ok');
+    updateUI();
+    renderChart();
+  }, (err) => {
+    console.error(err);
+    setSyncState('error');
+    toast('Sync error — working offline', 'error');
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Firestore: Save a single day
+// ═══════════════════════════════════════════════════════════════
+async function saveDay(dateKey) {
+  if (!currentUser) { saveLocal(); return; }
+  setSyncState('syncing');
+  try {
+    // dateKey is YYYY-MM-DD; split into month doc + day doc
+    const parts   = dateKey.split('-');        // ['2026','04','05']
+    const monthDk = parts[0] + '-' + parts[1]; // '2026-04'
+    const dayDd   = parts[2];                  // '05'
+    const dayRef  = doc(db, 'users', currentUser.uid, 'metrics', monthDk, 'days', dayDd);
+    await setDoc(dayRef, allData[dateKey] || EMPTY_DAY);
+    const hbRef = ref(rtdb, `heartbeats/${currentUser.uid}`);
+    await set(hbRef, { ts: serverTimestamp(), updatedDay: dateKey });
+    setSyncState('ok');
+    lastTs = Date.now();
+  } catch (e) {
+    console.error(e);
+    setSyncState('error');
+    toast('Save failed — check connection', 'error');
+    saveLocal();
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Realtime DB: Last Updated heartbeat listener
+// ═══════════════════════════════════════════════════════════════
+function subscribeHeartbeat(uid) {
+  const hbRef = ref(rtdb, `heartbeats/${uid}`);
+  onValue(hbRef, (snap) => {
+    const val = snap.val();
+    if (val?.ts) lastTs = val.ts;
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Local storage fallback
+// ═══════════════════════════════════════════════════════════════
+function saveLocal() {
+  localStorage.setItem('tc_data', JSON.stringify(allData));
+}
+
+function loadLocalData() {
+  const raw = localStorage.getItem('tc_data');
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw);
+      // Support both old {1..31} and new {'YYYY-MM-DD'} format
+      allData = {};
+      Object.entries(parsed).forEach(([k, v]) => {
+        const isLegacy = /^\d{1,2}$/.test(k);
+        if (isLegacy) {
+          const today = new Date();
+          const key = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(parseInt(k)).padStart(2,'0');
+          allData[key] = { ...EMPTY_DAY, ...v };
+        } else {
+          allData[k] = { ...EMPTY_DAY, ...v };
+        }
+      });
+    } catch {}
+  }
+  const color = localStorage.getItem('tc_color') || '#fdc9c9';
+  const title = localStorage.getItem('tc_title') || "Yousef & Taha's Counter";
+  applyTheme(color, title);
+  updateUI();
+  renderChart();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Theme
+// ═══════════════════════════════════════════════════════════════
+function applyTheme(color, title) {
+  document.documentElement.style.setProperty('--primary', color);
+  document.documentElement.style.setProperty('--primary-rgb', hexToRgb(color));
+  document.getElementById('colorPickerInput').value = color;
+  document.getElementById('colorDot').style.background = color;
+  document.getElementById('colorHex').textContent = color;
+  document.getElementById('app-title').value = title;
+  resizeTitle();
+}
+
+function hexToRgb(hex) {
+  const r = parseInt(hex.slice(1,3),16);
+  const g = parseInt(hex.slice(3,5),16);
+  const b = parseInt(hex.slice(5,7),16);
+  return `${r}, ${g}, ${b}`;
+}
+
+async function saveTheme(color, title) {
+  localStorage.setItem('tc_color', color);
+  localStorage.setItem('tc_title', title);
+  if (!currentUser) return;
+  try {
+    await updateDoc(doc(db, 'users', currentUser.uid), { 'theme.primaryColor': color, 'theme.title': title });
+  } catch {}
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Loading screen
+// ═══════════════════════════════════════════════════════════════
+function hideLoading() {
+  const el = document.getElementById('loadingOverlay');
+  el.classList.add('hidden');
+  setTimeout(() => el.style.display = 'none', 400);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Calendar — full year, month navigation
+// ═══════════════════════════════════════════════════════════════
+const MONTH_NAMES = ['January','February','March','April','May','June',
+  'July','August','September','October','November','December'];
+
+function renderCalendar() {
+  const grid    = document.getElementById('calendar-grid');
+  const header  = document.getElementById('cal-month-label');
+  if (header) header.textContent = MONTH_NAMES[currentMonth] + ' ' + currentYear;
+
+  const days = daysInMonth(currentYear, currentMonth);
+  grid.innerHTML = '';
+  for (let i = 1; i <= days; i++) {
+    const key = currentYear + '-' + String(currentMonth+1).padStart(2,'0') + '-' + String(i).padStart(2,'0');
+    const btn = document.createElement('div');
+    btn.className = 'day-btn';
+    btn.textContent = i;
+    const hasData = allData[key] && Object.values(allData[key]).some(v => v > 0);
+    if (hasData)                  btn.classList.add('has-data');
+    if (selectedDates.includes(key)) btn.classList.add('active');
+    btn.onclick = () => toggleDay(key);
+    grid.appendChild(btn);
+  }
+}
+
+function toggleDay(key) {
+  if (selectedDates.includes(key)) {
+    selectedDates = selectedDates.filter(d => d !== key);
+    if (selectedDates.length === 0) selectedDates = [key];
+  } else {
+    selectedDates.push(key);
+  }
+  updateUI();
+}
+
+document.getElementById('selectAllBtn').onclick = () => {
+  const days = daysInMonth(currentYear, currentMonth);
+  const monthKeys = [];
+  for (let i=1;i<=days;i++) {
+    const k = currentYear+'-'+String(currentMonth+1).padStart(2,'0')+'-'+String(i).padStart(2,'0');
+    if (allData[k] && Object.values(allData[k]).some(v=>v>0)) monthKeys.push(k);
+  }
+  const allSel = monthKeys.every(k => selectedDates.includes(k));
+  if (allSel || !monthKeys.length) {
+    selectedDates = [toDateKey(new Date())];
+  } else {
+    selectedDates = monthKeys;
+  }
+  updateUI();
+};
+
+// ── State flush on month change ─────────────────────────────
+// This is called every time the month changes.
+// It resets selectedDates to the 1st of the new month so
+// getAgg() sees the correct prefix and returns zeros for
+// days with no data — no ghost data from the previous month.
+function navigateToMonth(year, month) {
+  currentYear  = year;
+  currentMonth = month;
+  // Flush selected dates to day 1 of the new month
+  selectedDates = [currentYear + '-' + String(currentMonth+1).padStart(2,'0') + '-01'];
+  renderCalendar();
+  // Re-subscribe to the new month's Firestore subcollection
+  if (currentUser) {
+    subscribeMetrics(currentUser.uid);
+  } else {
+    renderChart();
+    updateUI();
+  }
+}
+
+document.getElementById('cal-prev-btn').onclick = () => {
+  let m = currentMonth - 1, y = currentYear;
+  if (m < 0) { m = 11; y--; }
+  navigateToMonth(y, m);
+};
+document.getElementById('cal-next-btn').onclick = () => {
+  let m = currentMonth + 1, y = currentYear;
+  if (m > 11) { m = 0; y++; }
+  navigateToMonth(y, m);
+};
+
+// ═══════════════════════════════════════════════════════════════
+// Aggregation
+// ═══════════════════════════════════════════════════════════════
+// Month prefix for the CURRENTLY VIEWED month — used as the strict filter
+function currentMonthPrefix() {
+  return currentYear + '-' + String(currentMonth+1).padStart(2,'0') + '-';
+}
+
+function getAgg() {
+  const result  = { ...EMPTY_DAY };
+  const pfx     = currentMonthPrefix();
+  selectedDates.forEach(key => {
+    // STRICT: only read data if the key belongs to the current month
+    if (!key.startsWith(pfx)) return;
+    const day = allData[key];
+    if (!day) return; // key exists in selection but has no data → treat as zero
+    Object.keys(result).forEach(k => { result[k] += (day[k] || 0); });
+  });
+  return result;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Counter change
+// ═══════════════════════════════════════════════════════════════
+window.change = function(key, amt) {
+  if (selectedDates.length !== 1) { toast('Select a single day to edit', 'error'); return; }
+  const dateKey = selectedDates[0];
+  ensureDay(dateKey);
+  allData[dateKey][key] = Math.max(0, (allData[dateKey][key] || 0) + amt);
+  const el = document.getElementById(key + '-val');
+  if (el) { el.classList.remove('update-pulse'); void el.offsetWidth; el.classList.add('update-pulse'); }
+  lastTs = Date.now();
+  saveDay(dateKey);
+  updateUI();
+};
+
+window.changeCredits = function(amt) {
+  if (selectedDates.length !== 1) { toast('Select a single day to edit', 'error'); return; }
+  const dateKey = selectedDates[0];
+  ensureDay(dateKey);
+  allData[dateKey].credits = Math.max(0, (allData[dateKey].credits || 0) + amt);
+  lastTs = Date.now();
+  saveDay(dateKey);
+  updateUI();
+};
+
+document.getElementById('credits-val').addEventListener('change', (e) => {
+  if (selectedDates.length !== 1) { e.target.value = getAgg().credits; toast('Select a single day to edit', 'error'); return; }
+  const dateKey = selectedDates[0];
+  ensureDay(dateKey);
+  allData[dateKey].credits = Math.max(0, parseInt(e.target.value) || 0);
+  lastTs = Date.now();
+  saveDay(dateKey);
+  updateUI();
+});
+
+// ═══════════════════════════════════════════════════════════════
+// ETV / Repackaging
+// ═══════════════════════════════════════════════════════════════
+window.changeETV = function(type, amt) {
+  if (selectedDates.length !== 1) { toast('Select a single day to edit', 'error'); return; }
+  const dateKey = selectedDates[0];
+  ensureDay(dateKey);
+  allData[dateKey][type] = Math.max(0, (allData[dateKey][type] || 0) + amt);
+  const el = document.getElementById(type + '-val');
+  if (el) { el.classList.remove('update-pulse'); void el.offsetWidth; el.classList.add('update-pulse'); }
+  lastTs = Date.now();
+  saveDay(dateKey);
+  updateUI();
+};
+
+// ═══════════════════════════════════════════════════════════════
+// Tier Engine
+// ═══════════════════════════════════════════════════════════════
+// Thresholds = lower bound of each tier (T1 = below first value)
+// Image: Pay: T1<60, T2=60-65.99, T3=66-69.99, T4=70-74.99, T5=75%+
+//        Full: T1<45, T2=45-47.99, T3=48-51.99, T4=52-54.99, T5=55%+
+//        Post: T1<57, T2=57-61.99, T3=62-65.99, T4=66-69.99, T5=70%+
+const THRESHOLDS = {
+  pay:  [60, 66, 70, 75, 100],
+  full: [45, 48, 52, 55, 100],
+  post: [57, 62, 66, 70, 100],
+  rem:  [57, 62, 66, 70, 100],
+};
+const TIER_LABELS = {
+  pay:  ['T1·$0','T2·$20','T3·$30','T4·$40','T5·$50'],
+  full: ['T1·$0','T2·$25','T3·$50','T4·$100','T5·$150'],
+  post: ['T1·$0','T2·$30','T3·$70','T4·$135','T5·$250'],
+  rem:  ['T1·$0','T2·$30','T3·$70','T4·$135','T5·$250'],
+};
+
+function getTierInfo(value, type) {
+  const thresholds = THRESHOLDS[type] || THRESHOLDS.pay;
+  const labels     = TIER_LABELS[type]  || TIER_LABELS.pay;
+  const idx        = thresholds.findIndex(t => value < t);
+  const tierNum    = idx === -1 ? 5 : idx + 1;
+  const lower      = tierNum === 1 ? 0 : thresholds[tierNum - 2];
+  const upper      = thresholds[tierNum - 1];
+  return { tierNum, label: labels[tierNum-1], lower, upper, color: `var(--tier-${tierNum})` };
+}
+
+function updateTierUI(tierId, arrowWrapId, pct, type, hasData) {
+  const badge = document.getElementById(tierId);
+  const wrap  = document.getElementById(arrowWrapId);
+  const arrow = wrap?.querySelector('.tier-arrow');
+  if (!hasData) {
+    if (badge) badge.style.display = 'none';
+    if (wrap)  wrap.style.visibility = 'hidden';
+    return;
+  }
+  const { tierNum, label, lower, upper, color } = getTierInfo(pct, type);
+  if (badge) {
+    badge.style.display = 'inline-block';
+    badge.textContent   = label;
+    badge.style.color   = color;
+    badge.style.borderColor = color;
+  }
+  if (wrap && arrow) {
+    wrap.style.visibility = 'visible';
+    if (tierNum === 5) {
+      arrow.style.display = 'none';
+    } else {
+      arrow.style.display = 'block';
+      arrow.style.color   = color;
+      const progress = upper === lower ? 1 : Math.min(Math.max((pct - lower) / (upper - lower), 0), 1);
+      const maxLeft  = wrap.clientWidth - arrow.offsetWidth;
+      arrow.style.left = `${maxLeft * progress}px`;
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Update UI
+// ═══════════════════════════════════════════════════════════════
+function updateUI() {
+  renderCalendar();
+  const data   = getAgg();
+  const isMulti = selectedDates.length > 1;
+
+  // View label
+  const viewLabel = document.getElementById('view-label');
+  if (viewLabel) {
+    if (isMulti) {
+      viewLabel.textContent = `Viewing ${selectedDates.length} Days`;
+    } else {
+      const parts = selectedDates[0].split('-');
+      viewLabel.textContent = `${MONTH_NAMES[parseInt(parts[1])-1]} ${parseInt(parts[2])}, ${parts[0]}`;
+    }
+  }
+
+  // Lock/unlock controls
+  document.querySelectorAll('.metric-controls').forEach(el => {
+    el.classList.toggle('locked', isMulti);
+  });
+  const credEl = document.getElementById('credits-val');
+  if (credEl) credEl.disabled = isMulti;
+
+  // Set values
+  const sv = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  sv('calls-val', data.calls);
+  sv('pay-val',   data.pay);
+  sv('full-val',  data.full);
+  sv('coll-val',  data.coll);
+  sv('post-val',  data.post);
+  sv('ap-val',    data.ap);
+  sv('pp-val',    data.pp);
+  if (credEl) credEl.value = data.credits;
+
+  // Percentages + color them by tier
+  const payPct  = data.calls ? (data.pay  / data.calls * 100) : 0;
+  const fullPct = data.calls ? (data.full / data.calls * 100) : 0;
+  const postPct = data.coll  ? (data.post / data.coll  * 100) : 0;
+
+  const applyPctColor = (elId, pct, type, hasData) => {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    el.textContent = pct.toFixed(1) + '%';
+    if (!hasData) { el.style.color = 'var(--text-dim)'; return; }
+    const { color } = getTierInfo(pct, type);
+    el.style.color = color;
+  };
+  applyPctColor('pay-perc',  payPct,  'pay',  data.calls > 0);
+  applyPctColor('full-perc', fullPct, 'full', data.calls > 0);
+  applyPctColor('post-perc', postPct, 'post', data.coll  > 0);
+
+  sv('ap-money',  '$' + (data.ap * 2).toFixed(0));
+  sv('pp-money',  '$' + data.pp.toFixed(0));
+
+  // ── ETV / Repackaging ─────────────────────────────────────
+  // Tier is based on FULL MONTH total (all 31 days), not selected day view
+  // ETV tier = strictly scoped to the currently viewed month (no cross-month bleed)
+  const monthEtv = Object.entries(allData).filter(([k])=>k.startsWith(currentMonthPrefix())).reduce((s,[,d])=>s+(d.etv||0)+(d.xtv||0)+(d.eev||0),0);
+  const etvRate  = monthEtv >= 21 ? 3 : monthEtv >= 11 ? 2 : 1;
+  const etvLabel = monthEtv >= 21 ? '21+ swaps · $3 each' : monthEtv >= 11 ? '11–20 swaps · $2 each' : '1–10 swaps · $1 each';
+  const etvBadge = monthEtv >= 21 ? 'Tier 3' : monthEtv >= 11 ? 'Tier 2' : 'Tier 1';
+  const etvColor = monthEtv >= 21 ? 'var(--tier-5)' : monthEtv >= 11 ? 'var(--tier-3)' : 'var(--tier-2)';
+
+  // Display counts for selected day(s)
+  sv('etv-val',   data.etv || 0);
+  sv('xtv-val',   data.xtv || 0);
+  sv('eev-val',   data.eev || 0);
+  sv('etv-swaps-total', (data.etv||0) + (data.xtv||0) + (data.eev||0));
+
+  // ETV money = month total × rate per swap
+  const etvMoney = monthEtv * etvRate;
+  sv('etv-total-money', '$' + etvMoney);
+  sv('etv-tier-label', etvLabel);
+
+  const etvBadgeEl = document.getElementById('etv-tier-badge');
+  if (etvBadgeEl) {
+    etvBadgeEl.textContent = etvBadge;
+    etvBadgeEl.style.display = 'inline-block';
+    etvBadgeEl.style.color = etvColor;
+    etvBadgeEl.style.borderColor = etvColor;
+  }
+
+  // ── Total Earnings ─────────────────────────────────────────
+  const apEarnings  = (data.ap || 0) * 2;
+  const ppEarnings  = data.pp || 0;
+  const totalEarnings = apEarnings + ppEarnings + etvMoney;
+  sv('total-earnings', '$' + totalEarnings.toFixed(0));
+
+  // Credits color
+  if (credEl) {
+    const limit = isMulti ? [2000, 1000] : [180, 100];
+    credEl.style.color = data.credits > limit[0] ? 'var(--danger)'
+                       : data.credits >= limit[1] ? 'var(--warning)'
+                       : 'var(--success)';
+  }
+
+  // Tiers + Arrows
+  updateTierUI('pay-tier',  'payArrowWrap',  payPct,  'pay',  data.calls > 0);
+  updateTierUI('full-tier', 'fullArrowWrap', fullPct, 'full', data.calls > 0);
+  updateTierUI('post-tier', 'postArrowWrap', postPct, 'post', data.coll  > 0);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Chart
+// ═══════════════════════════════════════════════════════════════
+function renderChart() {
+  const canvas = document.getElementById('performanceChart');
+  if (!canvas) return;
+  if (typeof window.Chart === 'undefined') return; // Chart.js not loaded yet
+
+  const labels = [], payArr = [], fullArr = [], postArr = [];
+  const chartDays = daysInMonth(currentYear, currentMonth);
+  const monthPfx  = currentYear + '-' + String(currentMonth+1).padStart(2,'0') + '-';
+
+  for (let i = 1; i <= chartDays; i++) {
+    const key = monthPfx + String(i).padStart(2,'0');
+    labels.push(i);
+    const d = allData[key] || EMPTY_DAY;
+    payArr.push(d.calls ? +(d.pay  / d.calls * 100).toFixed(1) : 0);
+    fullArr.push(d.calls ? +(d.full / d.calls * 100).toFixed(1) : 0);
+    postArr.push(d.coll  ? +(d.post / d.coll  * 100).toFixed(1) : 0);
+  }
+
+  // Destroy old instance cleanly
+  if (chartInst) { try { chartInst.destroy(); } catch(e){} chartInst = null; }
+
+  chartInst = new window.Chart(canvas.getContext('2d'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label:'Pay %',  data:payArr,  borderColor:'#fbbf24', backgroundColor:'rgba(251,191,36,0.10)', borderWidth:2.5, tension:0.4, pointRadius:3, pointHoverRadius:5, fill:true },
+        { label:'Full %', data:fullArr, borderColor:'#60a5fa', backgroundColor:'rgba(96,165,250,0.08)', borderWidth:2.5, tension:0.4, pointRadius:3, pointHoverRadius:5, fill:true },
+        { label:'Post %', data:postArr, borderColor:'#34d399', backgroundColor:'rgba(52,211,153,0.08)', borderWidth:2.5, tension:0.4, pointRadius:3, pointHoverRadius:5, fill:true },
+      ]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      interaction:{ mode:'index', intersect:false },
+      plugins:{
+        legend:{ labels:{ color:'#94a3b8', font:{ size:11, weight:'600', family:'DM Mono' }, boxWidth:10, padding:12 } },
+        tooltip:{
+          backgroundColor:'rgba(15,30,54,0.95)',
+          borderColor:'rgba(255,255,255,0.1)',
+          borderWidth:1,
+          titleColor:'#f1f5f9',
+          bodyColor:'#94a3b8',
+          padding:10,
+          callbacks:{ label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)}%` }
+        }
+      },
+      scales:{
+        x:{ grid:{ display:false }, ticks:{ color:'#64748b', font:{ size:10, family:'DM Mono' } } },
+        y:{ beginAtZero:true, max:100, grid:{ color:'rgba(255,255,255,0.05)' }, ticks:{ color:'#64748b', font:{ size:10, family:'DM Mono' }, stepSize:25, callback: v => v+'%' } }
+      }
+    }
+  });
+}
+
+
+
+
+
+// ═══════════════════════════════════════════════════════════════
+// Call Logger
+// ═══════════════════════════════════════════════════════════════
+async function logCall() {
+  const acc = document.getElementById('accNum').value.trim();
+  const seq = document.getElementById('seqNum').value.trim();
+  if (!acc || !seq) { toast('Fill Acc # and Seq #', 'error'); return; }
+  const isPay  = document.getElementById('chk-pay').checked;
+  const isFull = document.getElementById('chk-full').checked;
+  const isRem  = document.getElementById('chk-rem').checked;
+  const outcome = isFull ? 'Full Payment' : isPay ? 'Payment' : isRem ? 'Removed' : 'None';
+
+  // Build log entry
+  const entry = {
+    agentUid:  currentUser?.uid   || 'anon',
+    agentEmail: currentUser?.email || 'anon',
+    acc, seq, outcome,
+    ts: new Date().toISOString()
+  };
+
+  // Save to Firestore so admin can see it
+  if (currentUser) {
+    try {
+      await addDoc(collection(db, 'callLogs'), entry);
+    } catch(e) {
+      console.error('Log save failed', e);
+    }
+  }
+
+  // Update counters for the selected day
+  if (selectedDates.length === 1) {
+    const dateKey = selectedDates[0];
+    ensureDay(dateKey);
+    allData[dateKey].calls = (allData[dateKey].calls || 0) + 1;
+    if (isPay || isFull) allData[dateKey].pay  = (allData[dateKey].pay  || 0) + 1;
+    if (isFull)          allData[dateKey].full = (allData[dateKey].full || 0) + 1;
+    if (isRem)           allData[dateKey].post = (allData[dateKey].post || 0) + 1;
+    lastTs = Date.now();
+    saveDay(dateKey);
+    updateUI();
+  }
+
+  document.getElementById('accNum').value = '';
+  document.getElementById('seqNum').value = '';
+  ['chk-pay','chk-full','chk-rem'].forEach(id => document.getElementById(id).checked = false);
+  toast('Call logged ✓', 'success', 1500);
+}
+window.logCall = logCall;
+['accNum','seqNum'].forEach(id => {
+  document.getElementById(id)?.addEventListener('keydown', e => { if (e.key === 'Enter') logCall(); });
+});
+
+// ═══════════════════════════════════════════════════════════════
+// Auth UI
+// ═══════════════════════════════════════════════════════════════
+function setAuthMsg(msg, type = '') {
+  const el = document.getElementById('authMsg');
+  el.textContent = msg;
+  el.className = `modal-msg ${type}`;
+}
+
+window.toggleAuthMode = function() {
+  isAuthMode = isAuthMode === 'signin' ? 'signup' : 'signin';
+  const isSU = isAuthMode === 'signup';
+  document.getElementById('authTitle').textContent = isSU ? 'Create Account' : 'Welcome Back';
+  document.getElementById('authSub').textContent   = isSU ? 'Register a new agent account' : 'Sign in to sync your data across devices';
+  document.getElementById('signInBtn').style.display = isSU ? 'none' : 'flex';
+  document.getElementById('signUpBtn').style.display = isSU ? 'flex' : 'none';
+  document.getElementById('authToggle').textContent = isSU ? 'Sign in instead' : 'Create one';
+  setAuthMsg('');
+};
+
+function setBtnLoading(id, loading) {
+  const btn = document.getElementById(id);
+  if (loading) { btn.dataset.orig = btn.innerHTML; btn.innerHTML = '<span class="spinner"></span>'; btn.disabled = true; }
+  else         { btn.innerHTML = btn.dataset.orig || btn.innerHTML; btn.disabled = false; }
+}
+
+document.getElementById('signInBtn').onclick = async () => {
+  const email = document.getElementById('authEmail').value.trim();
+  const pass  = document.getElementById('authPassword').value;
+  if (!email || !pass) { setAuthMsg('Please fill all fields', 'error'); return; }
+  setBtnLoading('signInBtn', true);
+  try {
+    await signInWithEmailAndPassword(auth, email, pass);
+    document.getElementById('authModal').classList.remove('active');
+    toast('Signed in successfully', 'success');
+  } catch (e) {
+    setAuthMsg(friendlyAuthError(e.code), 'error');
+  } finally { setBtnLoading('signInBtn', false); }
+};
+
+document.getElementById('signUpBtn').onclick = async () => {
+  const email = document.getElementById('authEmail').value.trim();
+  const pass  = document.getElementById('authPassword').value;
+  if (!email || !pass) { setAuthMsg('Please fill all fields', 'error'); return; }
+  if (pass.length < 6) { setAuthMsg('Password must be at least 6 characters', 'error'); return; }
+  setBtnLoading('signUpBtn', true);
+  try {
+    await createUserWithEmailAndPassword(auth, email, pass);
+    document.getElementById('authModal').classList.remove('active');
+    toast('Account created & signed in', 'success');
+  } catch (e) {
+    setAuthMsg(friendlyAuthError(e.code), 'error');
+  } finally { setBtnLoading('signUpBtn', false); }
+};
+
+window.sendPasswordReset = async function() {
+  const email = document.getElementById('authEmail').value.trim();
+  if (!email) { setAuthMsg('Enter your email first', 'error'); return; }
+  try {
+    await sendPasswordResetEmail(auth, email);
+    setAuthMsg('Reset email sent!', 'success');
+  } catch (e) { setAuthMsg(friendlyAuthError(e.code), 'error'); }
+};
+
+function friendlyAuthError(code) {
+  const map = {
+    'auth/user-not-found':       'No account with this email.',
+    'auth/wrong-password':       'Incorrect password.',
+    'auth/invalid-credential':   'Invalid email or password.',
+    'auth/email-already-in-use': 'Email already in use.',
+    'auth/too-many-requests':    'Too many attempts. Try later.',
+    'auth/network-request-failed': 'Network error.',
+  };
+  return map[code] || 'Something went wrong.';
+}
+
+document.getElementById('loginBtn').onclick = async () => {
+  if (currentUser) {
+    await signOut(auth);
+    toast('Signed out', 'info');
+    for (let i=1;i<=31;i++) allData[i] = {...EMPTY_DAY};
+    applyTheme('#fdc9c9', "Yousef & Taha's Counter");
+    updateUI();
+    renderChart();
+  } else {
+    document.getElementById('authModal').classList.add('active');
+  }
+};
+
+// Close auth modal on backdrop click
+document.getElementById('authModal').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) e.currentTarget.classList.remove('active');
+});
+
+// ═══════════════════════════════════════════════════════════════
+// Title Editor
+// ═══════════════════════════════════════════════════════════════
+window.startTitleEdit = function() {
+  const inp = document.getElementById('app-title');
+  inp.removeAttribute('readonly');
+  inp.focus();
+};
+document.getElementById('app-title').addEventListener('focusout', async (e) => {
+  e.target.setAttribute('readonly','');
+  const title = e.target.value || "Yousef & Taha's Counter";
+  const color = document.getElementById('colorPickerInput').value;
+  await saveTheme(color, title);
+  resizeTitle();
+});
+document.getElementById('app-title').addEventListener('keydown', e => {
+  if (e.key === 'Enter') e.target.blur();
+});
+
+function resizeTitle() {
+  const inp    = document.getElementById('app-title');
+  const mirror = document.createElement('span');
+  mirror.style.cssText = 'visibility:hidden;position:absolute;white-space:pre;font-family:Syne,sans-serif;font-weight:800;font-size:26px;letter-spacing:-0.03em;padding:2px 4px;';
+  mirror.textContent = inp.value;
+  document.body.appendChild(mirror);
+  inp.style.width = (mirror.offsetWidth + 4) + 'px';
+  mirror.remove();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Color Picker
+// ═══════════════════════════════════════════════════════════════
+document.getElementById('colorPickerInput').addEventListener('input', (e) => {
+  applyTheme(e.target.value, document.getElementById('app-title').value);
+});
+document.getElementById('colorPickerInput').addEventListener('change', async (e) => {
+  const color = e.target.value;
+  const title = document.getElementById('app-title').value;
+  await saveTheme(color, title);
+});
+
+// ═══════════════════════════════════════════════════════════════
+// Sidebar Toggle
+// ═══════════════════════════════════════════════════════════════
+const sidebarEl  = document.getElementById('sidebar');
+const mainEl     = document.getElementById('mainContent');
+const shellEl    = document.querySelector('.app-shell');
+const toggleBtn  = document.getElementById('toggle-sidebar-btn');
+let sidebarOpen  = true;
+
+const isMobile = () => window.innerWidth <= 768;
+
+toggleBtn.onclick = () => {
+  if (isMobile()) {
+    // On mobile: slide sidebar in/out over content
+    sidebarEl.classList.toggle('mobile-open');
+    toggleBtn.classList.toggle('sidebar-open', sidebarEl.classList.contains('mobile-open'));
+  } else {
+    sidebarOpen = !sidebarOpen;
+    sidebarEl.classList.toggle('hidden', !sidebarOpen);
+    shellEl.classList.toggle('sidebar-hidden', !sidebarOpen);
+    mainEl.classList.toggle('expanded', !sidebarOpen);
+    toggleBtn.classList.toggle('sidebar-open', sidebarOpen);
+    localStorage.setItem('tc_sidebar', sidebarOpen ? '1' : '0');
+  }
+  toggleBtn.textContent = '☰';
+};
+
+// Close sidebar on mobile when clicking outside
+document.addEventListener('click', (e) => {
+  if (isMobile() && sidebarEl.classList.contains('mobile-open')) {
+    if (!sidebarEl.contains(e.target) && e.target !== toggleBtn) {
+      sidebarEl.classList.remove('mobile-open');
+      toggleBtn.classList.remove('sidebar-open');
+    }
+  }
+});
+
+// Restore sidebar state (desktop only)
+const savedSb = localStorage.getItem('tc_sidebar');
+if (!isMobile() && savedSb === '0') {
+  sidebarOpen = false;
+  sidebarEl.classList.add('hidden');
+  shellEl.classList.add('sidebar-hidden');
+  mainEl.classList.add('expanded');
+  toggleBtn.classList.remove('sidebar-open');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// Screenshot
+// ═══════════════════════════════════════════════════════════════
+document.getElementById('screenshotBtn').onclick = async () => {
+  const target = document.getElementById('capture-area');
+  toast('Capturing screenshot…', 'info', 1500);
+  try {
+    await new Promise(r => setTimeout(r, 100));
+    const canvas = await window.html2canvas(target, {
+      backgroundColor: '#0c1525',
+      scale: 2,
+      useCORS: true,
+      allowTaint: true,
+      logging: false
+    });
+    const link = document.createElement('a');
+    link.download = `counter-${new Date().toISOString().slice(0,10)}.png`;
+    link.href = canvas.toDataURL('image/png');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast('Screenshot saved!', 'success');
+  } catch(e) {
+    console.error('Screenshot error:', e);
+    toast('Screenshot failed — try again', 'error');
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════
+// Last Updated Timer
+// ═══════════════════════════════════════════════════════════════
+function updateTimer() {
+  const diff = Math.floor((Date.now() - lastTs) / 1000);
+  const h = Math.floor(diff / 3600);
+  const m = Math.floor((diff % 3600) / 60);
+  const s = diff % 60;
+  const pad = n => String(n).padStart(2,'0');
+  const el = document.getElementById('last-updated');
+  if (el) el.textContent = `Last Updated: ${pad(h)}:${pad(m)}:${pad(s)} ago`;
+}
+setInterval(updateTimer, 1000);
+
+// ═══════════════════════════════════════════════════════════════
+// Init
+// ═══════════════════════════════════════════════════════════════
+resizeTitle();
+// onAuthStateChanged will call updateUI once ready
+
+</script>
+</body>
+</html>
